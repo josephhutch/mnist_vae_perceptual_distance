@@ -79,25 +79,11 @@ class VAE(nn.Module):
         return self.decode(z), mu, logvar
 
 # Hook for each layer for perceptual distance, results stored in activation dict
-activation = {}
-def get_activation(name):
-    def hook(model, input, output):
-        activation[name] = output.detach()
-    return hook
 
-PD_each_epoch = {}
-PD_each_epoch['total'] = []
 
 classify_model = classification.Net()
 classify_model.load_state_dict(torch.load("mnist_cnn.pt"))
 classify_model.eval()
-
-# Add hooks to each layer to see activations for perceptual distance
-for name, module in classify_model.named_modules():
-    # The '' layer is the output layer and I don't think we need that, maybe?
-    if name != '':
-        PD_each_epoch[name] = []
-        module.register_forward_hook(get_activation(name))
 
 model = VAE().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -107,19 +93,15 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, logvar):
     # Perceptual Distance
-    classify_model(x)
-    x_activations = activation.copy()
 
-    classify_model(recon_x.view(x.shape))
-    recon_x_activations = activation
+    x_activations = classify_model.calc_activations(x)
+    recon_x_activations = classify_model.calc_activations(recon_x.view(x.shape))
 
-    PD = 0
-    for layer in activation:
-        perceptual_distance = torch.dist(x_activations[layer], recon_x_activations[layer], 2)
-        PD += perceptual_distance
-        PD_each_epoch[layer].append(perceptual_distance)
+    PD = 0.0
+    for (x_act, recon_x_act) in zip(x_activations, recon_x_activations):
+        PD +=  F.mse_loss(x_act, recon_x_act, reduction='sum')
 
-    PD_each_epoch['total'] = PD
+    PD /= len(x_activations)
 
     # This will need to change because they are considering MNIST to be Bernoulli
     # hence using the BCE
@@ -131,7 +113,9 @@ def loss_function(recon_x, x, mu, logvar):
     # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
     KLD = 0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
-    return BCE - KLD
+    print(f'BCE: {BCE}, PD: {PD}, KLD: {KLD}')
+    return BCE + PD - KLD
+    # return PD
 
 
 def train(epoch):
@@ -182,9 +166,3 @@ if __name__ == "__main__":
             sample = model.decode(sample).cpu()
             save_image(sample.view(64, 1, 28, 28),
                        'results/sample_' + str(epoch) + '.png')
-
-    
-    for pd_component in PD_each_epoch:
-        plt.plot(PD_each_epoch[pd_component])
-        plt.title(pd_component)
-        plot.show()
