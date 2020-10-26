@@ -9,7 +9,7 @@ from torchvision import datasets, transforms
 from torchvision.utils import save_image
 import matplotlib.pyplot as plt
 import pdb
-from torchviz import make_dot
+# from torchviz import make_dot
 
 
 parser = argparse.ArgumentParser(description='VAE MNIST Example')
@@ -101,7 +101,7 @@ def loss_function(recon_x, x, mu, logvar):
 
     PD = 0.0
     for (x_act, recon_x_act) in zip(x_activations, recon_x_activations):
-        PD +=  F.mse_loss(x_act, recon_x_act, reduction='sum')
+        PD +=  0.02 * F.mse_loss(x_act, recon_x_act, reduction='sum')
 
     PD /= len(x_activations)
 
@@ -113,10 +113,11 @@ def loss_function(recon_x, x, mu, logvar):
     # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
     # https://arxiv.org/abs/1312.6114
     # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
-    KLD = 0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
     # print(f'BCE: {BCE}, PD: {PD}, KLD: {KLD}')
     return BCE + PD - KLD
+    # return PD + KLD
     # return PD
 
 
