@@ -1,4 +1,4 @@
-torchp
+torch
 torchvision
 # torchviz
 matplotlib
