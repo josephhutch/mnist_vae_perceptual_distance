@@ -55,15 +55,20 @@ class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
 
-        self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 20)
-        self.fc22 = nn.Linear(400, 20)
-        self.fc3 = nn.Linear(20, 400)
-        self.fc4 = nn.Linear(400, 784)
+        conv_channels=32
+
+        # in: 1x28x28
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=conv_channels, kernel_size=3)
+        # out: 32x26x26
+        self.fc11 = nn.Linear(21632, 20)
+        self.fc12 = nn.Linear(21632, 20)
+        self.fc2 = nn.Linear(20, 21632)
+        self.conv2 = nn.ConvTranspose2d(in_channels=conv_channels, out_channels=1, kernel_size=3)
 
     def encode(self, x):
-        h1 = F.relu(self.fc1(x))
-        return self.fc21(h1), self.fc22(h1)
+        x = self.conv1(x)
+        h1 = F.relu(torch.flatten(x,1))
+        return self.fc11(h1), self.fc12(h1)
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5*logvar)
@@ -71,11 +76,11 @@ class VAE(nn.Module):
         return mu + eps*std
 
     def decode(self, z):
-        h3 = F.relu(self.fc3(z))
-        return torch.sigmoid(self.fc4(h3))
+        h2 = F.relu(self.fc2(z))
+        return torch.sigmoid(self.conv2(h2.view(-1,32,26,26)))
 
     def forward(self, x):
-        mu, logvar = self.encode(x.view(-1, 784))
+        mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
         return self.decode(z), mu, logvar
 
@@ -97,17 +102,17 @@ def loss_function(recon_x, x, mu, logvar):
     # Perceptual Distance
 
     x_activations = classify_model.calc_activations(x)
-    recon_x_activations = classify_model.calc_activations(recon_x.view(x.shape))
+    recon_x_activations = classify_model.calc_activations(recon_x)
 
     PD = 0.0
     for (x_act, recon_x_act) in zip(x_activations, recon_x_activations):
-        PD +=  0.02 * F.mse_loss(x_act, recon_x_act, reduction='sum')
+        PD +=  0.03 * F.mse_loss(x_act, recon_x_act, reduction='sum')
 
     PD /= len(x_activations)
 
     # This will need to change because they are considering MNIST to be Bernoulli
     # hence using the BCE
-    BCE = F.binary_cross_entropy(recon_x, x.view(-1, 784), reduction='sum')
+    BCE = F.binary_cross_entropy(recon_x.view(-1, 784), x.view(-1, 784), reduction='sum')
 
     # see Appendix B from VAE paper:
     # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
@@ -116,8 +121,8 @@ def loss_function(recon_x, x, mu, logvar):
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
     # print(f'BCE: {BCE}, PD: {PD}, KLD: {KLD}')
-    return BCE + PD - KLD
-    # return PD + KLD
+    # return BCE + PD - KLD
+    return PD + KLD
     # return PD
 
 
