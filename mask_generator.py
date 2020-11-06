@@ -75,13 +75,7 @@ class MixtureMaskGenerator:
         return mask
 
 class ImageMaskGenerator:
-    """
-    In order to train one model for the masks from all papers
-    we mention above together with arbitrary rectangle masks,
-    we use the mixture of all these masks at the training stage
-    and on the test stage.
-    Note, that this generator works as supposed only for 128x128 images.
-    """
+
     def __init__(self):
         mcar = ImageMCARGenerator(0.95)
         common = RectangleGenerator()
