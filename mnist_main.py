@@ -7,6 +7,7 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
+from VAE import MNISTVAE
 import matplotlib.pyplot as plt
 import pdb
 # from torchviz import make_dot
@@ -51,41 +52,6 @@ test_loader = torch.utils.data.DataLoader(
 #     datasets.CelebA('./data', split='test', transform=transforms.ToTensor()),
 #     batch_size=args.batch_size, shuffle=True, **kwargs)
 
-class VAE(nn.Module):
-    def __init__(self):
-        super(VAE, self).__init__()
-
-        conv_channels=32
-
-        # in: 1x28x28
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=conv_channels, kernel_size=3)
-        # out: 32x26x26
-        self.fc11 = nn.Linear(21632, 20)
-        self.fc12 = nn.Linear(21632, 20)
-        self.fc2 = nn.Linear(20, 21632)
-        self.conv2 = nn.ConvTranspose2d(in_channels=conv_channels, out_channels=1, kernel_size=3)
-
-    def encode(self, x):
-        x = self.conv1(x)
-        h1 = F.relu(torch.flatten(x,1))
-        return self.fc11(h1), self.fc12(h1)
-
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5*logvar)
-        eps = torch.randn_like(std)
-        return mu + eps*std
-
-    def decode(self, z):
-        h2 = F.relu(self.fc2(z))
-        return torch.sigmoid(self.conv2(h2.view(-1,32,26,26)))
-
-    def forward(self, x):
-        mu, logvar = self.encode(x)
-        z = self.reparameterize(mu, logvar)
-        return self.decode(z), mu, logvar
-
-# Hook for each layer for perceptual distance, results stored in activation dict
-
 
 classify_model = classification.Net()
 classify_model.load_state_dict(torch.load("mnist_cnn.pt"))
@@ -93,7 +59,7 @@ classify_model.eval()
 for param in classify_model.parameters():
     param.requires_grad = False
 
-model = VAE().to(device)
+model = MNISTVAE().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 
