@@ -30,7 +30,7 @@ class CelebAData(Dataset):
 
 class RuntimeCelebAData(Dataset):
 
-    def __init__(self, limit=2000, sample=False):
+    def __init__(self, limit=2000, sample=False, store=False):
         dir = get_aligned_celeb_dir()
         files = os.listdir(dir)
         self.images = dict()
@@ -39,6 +39,7 @@ class RuntimeCelebAData(Dataset):
             self.files = [os.path.join(dir, file) for file in files[idx]]
         else:
             self.files = [os.path.join(dir, file) for file in files[:limit]]
+        self.store = store
 
     def __len__(self):
         return len(self.files)
@@ -50,7 +51,8 @@ class RuntimeCelebAData(Dataset):
             imgfile = self.files[item]
             img = np.array(Image.open(imgfile).resize([224, 224]), dtype=np.float32)
             img = img.reshape([3, 224, 224]) / 255
-            self.images[item] = img
+            if self.store:
+                self.images[item] = img
             return img
 
 
